@@ -115,3 +115,37 @@ module Lens =
 
     let zoom(node:IMutableNode<'S>, lens: Lens<'S,'R>) : IMutableNode<'R> = 
             new ZoomNode<'S,'R>(node, lens) :> IMutableNode<'R>
+
+[<AutoOpen>]
+module Web = 
+    open Feliz
+
+    type View = ReactElement
+
+    type EditorComponentF<'TState> = IMutableNode<'TState> -> INode<View>
+
+    type ViewComponentF<'TState> = INode<'TState> -> INode<View>
+
+    [<AbstractClass>]
+    type EditorComponent<'TState>(state: IMutableNode<'TState>) =    
+        abstract View : INode<ReactElement>
+
+    type StringEditor(state: IMutableNode<string>, ?label: string) = 
+        inherit EditorComponent<string>(state)
+
+        override _.View = 
+            new CalcNode<_,_>(state, fun s ->
+            let mutable newValue =  s;
+            Html.div [
+                if label.IsSome then 
+                    yield Html.label [prop.text label.Value]
+                yield Html.input [
+                    prop.type' "text";
+                    prop.valueOrDefault s
+                    prop.onTextChange (fun (value : string) -> console.log(value); newValue <- value;);
+                    prop.onBlur (fun _ -> state.SetValue(newValue));
+                ]
+            ]) :> INode<_>
+
+
+
