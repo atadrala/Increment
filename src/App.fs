@@ -36,16 +36,16 @@ type Router<'TState>(state: IMutableNode<'TState>, routes: Routes<'TState>, init
                                         } |> Async.Start
                                 ))
 
-type MyApp(state: IMutableNode<string*string>) = 
-    inherit EditorComponent<string*string>(state) 
+type MyApp(state: IMutableNode<string[]>) = 
+    inherit EditorComponent<string[]>(state) 
 
-    let reverse x = new string( x |> Array.ofSeq |> Array.rev)
+    // let reverse x = new string( x |> Array.ofSeq |> Array.rev)
 
-    let lens: Lens<string*string,string> = fst >> reverse, (fun x (str, route) -> (reverse x, route))
-    let lensFst : Lens<string*string, string> = fst, (fun x  (_,route) -> x, route)
+    // let lens: Lens<string*string,string> = fst >> reverse, (fun x (str, route) -> (reverse x, route))
+    // let lensFst : Lens<string*string, string> = fst, (fun x  (_,route) -> x, route)
 
-    let strEditor = StringEditor(zoom(state, lensFst), "String:", function | "Artur" -> Some "Cannot be Artur" | _ -> None )
-    let revEditor = StringEditor(zoom(state, lens), "Reversed:")
+    // let strEditor = StringEditor(zoom(state, lensFst), "String:", function | "Artur" -> Some "Cannot be Artur" | _ -> None )
+    // let revEditor = StringEditor(zoom(state, lens), "Reversed:")
 
     let scrollPosition = new MutableNode<float>(400.) :> IMutableNode<_>
 
@@ -59,16 +59,20 @@ type MyApp(state: IMutableNode<string*string>) =
                             scroll, start, end_
                         )
 
+    let span = new CalcNode<_,_>(viewSpan, fun (_,start,stop) -> (start, stop))
+
     let data = [1..100] |> List.map (fun x -> "Artur " + string x)
     let count = 100
 
-    override _.View = new CalcNode<_,_>( //strEditor.View, revEditor.View,  
+    let editors = Virtualization.virtualize(state, (fun elem -> upcast StringEditor(elem)), span)
+
+    override _.View = new CalcNode<_,_,_>( //strEditor.View, revEditor.View,  
                         //fun strEdit revEdit -> 
                             // Html.div [
                             //     strEdit;
                             //     revEdit;
                             // ]
-                            viewSpan, fun (scroll, start, stop) -> 
+                            viewSpan, editors, fun (scroll, start, stop) editors -> 
 
                             Html.div [
                                 prop.ref <| fun (el:Browser.Types.Element) -> 
@@ -84,11 +88,11 @@ type MyApp(state: IMutableNode<string*string>) =
                                     yield Html.div [ 
                                         prop.style [ Feliz.style.height (start*elementHeight) ]
                                         ]
-                                    for x in start..stop do
+                                    for x in editors do
                                       yield Html.div [
-                                            prop.text (data.[x])
-                                            prop.style [ 
-                                                Feliz.style.height elementHeight;
+                                                prop.children [ x ];
+                                                prop.style [ 
+                                                    Feliz.style.height elementHeight;
                                             ]
                                     ]
 
@@ -96,12 +100,11 @@ type MyApp(state: IMutableNode<string*string>) =
                                         prop.style [ Feliz.style.height ((count - stop)*elementHeight) ]
                                     ]
                                  ]  
-                              
                             ]
                             
                             ) :> INode<_>
 
-    new() = MyApp(new MutableNode<string*string>( window.location.pathname, window.location.pathname) :> IMutableNode<_>)
+    new() = MyApp(new MutableNode<string[]>( [|0..100|] |> Array.map string ) :> IMutableNode<_>)
 
 
 let app =  new MyApp()

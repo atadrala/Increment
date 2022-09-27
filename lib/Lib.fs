@@ -271,15 +271,9 @@ module Virtualization =
 
         let view = CalcNode<_,_>(editors, fun es -> 
             let viewNodes = new ArrayNode<_>(es |> Array.map (fun e -> e.View))
-            new CalcNode<_,_>(viewNodes, fun views -> 
-                     Html.ul [
-                        for v in views do 
-                            yield 
-                                Html.li v
-                     ]
-                ) :> INode<_> ) :> INode<_>
+            viewNodes :> INode<_> ) :> INode<_>
 
-        new BindNode<_>(view)
+        new BindNode<_>(view) :> INode<_>
 
         
 
