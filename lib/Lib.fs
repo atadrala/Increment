@@ -90,13 +90,29 @@ type BindNode<'R>(node: INode<INode<'R>>) =
             }
         member _.Changed = changed.Publish
 
+
+type ArrayNode<'R>(nodes: INode<'R> array) =
+    let changed = new Event<unit>()
+    do 
+        for n in nodes do   
+            n.Changed.Add(fun _ -> changed.Trigger())
+
+    interface INode<'R array> with
+        member this.Evaluate() = async {
+                let! values = Async.Parallel(nodes |> Array.map (fun n -> n.Evaluate()))
+                return values
+            }
+        member _.Changed = changed.Publish
+
 [<AutoOpen>]
 module Lens = 
     type Lens<'s,'r> = ( 's -> 'r)*('r -> 's -> 's)
 
+    let compose ((prj1, inj1): Lens<'a,'b>) ((prj2, inj2): Lens<'b,'c>) : Lens<'a,'c> =
+        (prj1 >> prj2), (fun r s -> s |> (s |> prj1 |> inj2 r |> inj1))
+
     type ZoomNode<'S, 'R>(node: IMutableNode<'S>, lens: Lens<'S,'R>) =
         let (prj, inj) = lens
-
         interface INode<'R> with
             member _.Evaluate() = async {
                 let! value = node.Evaluate()
@@ -114,6 +130,20 @@ module Lens =
 
     let zoom(node:IMutableNode<'S>, lens: Lens<'S,'R>) : IMutableNode<'R> = 
             new ZoomNode<'S,'R>(node, lens) :> IMutableNode<'R>
+
+    let indexLens (idx: int) : Lens<'t array,'t option> = 
+       (fun x -> if idx >= 0 && idx <= x.Length then Some (x.[idx]) else None), 
+       (fun r x -> 
+            match r with 
+            | Some r ->  if idx >= 9 && idx <= x.Length then do x.[idx] <- r
+            | None -> ()
+            x)
+    
+    let unsafeFromOption ( l: Lens<'s, 't option>) : Lens<'s,'t> =
+            compose l
+                (Option.defaultWith (fun () -> 
+                    failwith "Use of fromOption on None value in unsafeFromOption lense"),
+                 fun r _-> Some r)
 
 [<AutoOpen>]
 module Web = 
@@ -223,4 +253,37 @@ module Routing =
         static member Unwind(((((((a,b),c),d),e),f),g)) = (a,b,c,d,e,f,g)
         static member Unwind((((((((a,b),c),d),e),f),g),h)) = (a,b,c,d,e,f,g,h) 
 
+module Virtualization = 
+    open Feliz 
 
+    let virtualize (data: IMutableNode<'t array>, editorFactory: IMutableNode<'t> -> EditorComponent<'t>, span: INode<int*int>) =
+        let editorsPool (idx, lens) =
+            new ZoomNode<_,_>(data, lens) |> editorFactory
+        
+        let indexes : CalcNode<_,(int*Lens<_,_>) array>
+             = new CalcNode<_,_>(span, fun (start, stop) -> 
+                                    [|start..stop|] 
+                                    |> Array.map (fun idx ->
+                                            (idx - start, unsafeFromOption (indexLens idx))))
+
+        let editors: INode<EditorComponent<'t>[]> = 
+            new CalcNode<_,_>(indexes, Array.map editorsPool) :> INode<_>
+
+        let view = CalcNode<_,_>(editors, fun es -> 
+            let viewNodes = new ArrayNode<_>(es |> Array.map (fun e -> e.View))
+            new CalcNode<_,_>(viewNodes, fun views -> 
+                     Html.ul [
+                        for v in views do 
+                            yield 
+                                Html.li v
+                     ]
+                ) :> INode<_> ) :> INode<_>
+
+        new BindNode<_>(view)
+
+        
+
+                  
+
+
+        

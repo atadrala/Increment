@@ -47,12 +47,59 @@ type MyApp(state: IMutableNode<string*string>) =
     let strEditor = StringEditor(zoom(state, lensFst), "String:", function | "Artur" -> Some "Cannot be Artur" | _ -> None )
     let revEditor = StringEditor(zoom(state, lens), "Reversed:")
 
-    override _.View = new CalcNode<_,_,_>( strEditor.View, revEditor.View, 
-                        fun strEdit revEdit -> 
+    let scrollPosition = new MutableNode<float>(400.) :> IMutableNode<_>
+
+    let bufferSize = 4
+    let elementHeight = 20
+    let viewHeight = 100
+
+    let viewSpan = new CalcNode<_,_>(scrollPosition :> INode<_>, fun scroll -> 
+                            let start = max  0 (int scroll / elementHeight - bufferSize)
+                            let end_ = start + (viewHeight / elementHeight) + 2 * bufferSize
+                            scroll, start, end_
+                        )
+
+    let data = [1..100] |> List.map (fun x -> "Artur " + string x)
+    let count = 100
+
+    override _.View = new CalcNode<_,_>( //strEditor.View, revEditor.View,  
+                        //fun strEdit revEdit -> 
+                            // Html.div [
+                            //     strEdit;
+                            //     revEdit;
+                            // ]
+                            viewSpan, fun (scroll, start, stop) -> 
+
                             Html.div [
-                                strEdit;
-                                revEdit;
-                            ]) :> INode<_>
+                                prop.ref <| fun (el:Browser.Types.Element) -> 
+                                                    if el <> null then (el :?> Browser.Types.HTMLElement).scrollTop <- scroll
+                                prop.style [
+                                    Feliz.style.backgroundColor "green";
+                                    Feliz.style.height 100;
+                                    Feliz.style.overflow.auto;
+                                  ];
+                                prop.custom ("scrollTop", scroll)
+                                prop.onScroll ( fun se -> scrollPosition.SetValue((se.target :?> Browser.Types.HTMLElement).scrollTop));
+                                prop.children  [
+                                    yield Html.div [ 
+                                        prop.style [ Feliz.style.height (start*elementHeight) ]
+                                        ]
+                                    for x in start..stop do
+                                      yield Html.div [
+                                            prop.text (data.[x])
+                                            prop.style [ 
+                                                Feliz.style.height elementHeight;
+                                            ]
+                                    ]
+
+                                    yield Html.div [ 
+                                        prop.style [ Feliz.style.height ((count - stop)*elementHeight) ]
+                                    ]
+                                 ]  
+                              
+                            ]
+                            
+                            ) :> INode<_>
 
     new() = MyApp(new MutableNode<string*string>( window.location.pathname, window.location.pathname) :> IMutableNode<_>)
 
