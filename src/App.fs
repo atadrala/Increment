@@ -61,17 +61,11 @@ type MyApp(state: IMutableNode<string[]>) =
 
     let span = new CalcNode<_,_>(viewSpan, fun (_,start,stop) -> (start, stop))
 
-    let data = [1..100] |> List.map (fun x -> "Artur " + string x)
     let count = 100
 
-    let editors = Virtualization.virtualize(state, (fun elem -> upcast StringEditor(elem)), span)
+    let editors = Virtualization.virtualize(state, (fun elem -> console.log("String editor created"); upcast StringEditor(elem)), span)
 
-    override _.View = new CalcNode<_,_,_>( //strEditor.View, revEditor.View,  
-                        //fun strEdit revEdit -> 
-                            // Html.div [
-                            //     strEdit;
-                            //     revEdit;
-                            // ]
+    override _.View = new CalcNode<_,_,_>(
                             viewSpan, editors, fun (scroll, start, stop) editors -> 
 
                             Html.div [
@@ -82,7 +76,6 @@ type MyApp(state: IMutableNode<string[]>) =
                                     Feliz.style.height 100;
                                     Feliz.style.overflow.auto;
                                   ];
-                                prop.custom ("scrollTop", scroll)
                                 prop.onScroll ( fun se -> scrollPosition.SetValue((se.target :?> Browser.Types.HTMLElement).scrollTop));
                                 prop.children  [
                                     yield Html.div [ 
@@ -111,12 +104,10 @@ let app =  new MyApp()
 
 async { 
         let! v = app.View.Evaluate()
-        console.log("react rendered")
         ReactDom.render(v, myAppElement) } |> Async.Start
       
 app.View.Changed.Add( fun v -> async { 
         let! v = app.View.Evaluate()
-        console.log("react rendered")
         ReactDom.render(v, myAppElement)} |> Async.Start
         )
 

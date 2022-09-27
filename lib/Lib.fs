@@ -168,15 +168,15 @@ module Web =
             let mutable input : Types.Element option = None
             Html.div [
                 if label.IsSome then 
-                    yield Html.label [prop.text label.Value]
+                    yield Html.label [prop.text ""]
                 yield Html.input [
                     prop.type' "text";
-                    prop.valueOrDefault s
-                    prop.onTextChange (fun (value : string) -> console.log(value); newValue <- value;);
+                    prop.valueOrDefault s;
+                    prop.onTextChange (fun (value : string) -> newValue <- value;);
                     prop.onBlur (fun _ -> 
                                  match Option.bind ((|>) newValue) validate with 
                                  | None -> state.SetValue(newValue)
-                                 | Some error -> state.SetValue(newValue))
+                                 | Some error -> state.SetValue(newValue));
                 ]
             ]) :> INode<_>
 

@@ -7,6 +7,7 @@
   <ItemGroup>
     <Compile Include="UnitTest1.fs" />
     <Compile Include="RoutingTest.fs" />
+    <Compile Include="VirtualizationTest.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
