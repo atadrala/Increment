@@ -135,7 +135,7 @@ module Lens =
        (fun x -> if idx >= 0 && idx <= x.Length then Some (x.[idx]) else None), 
        (fun r x -> 
             match r with 
-            | Some r ->  if idx >= 9 && idx <= x.Length then do x.[idx] <- r
+            | Some r ->  if idx >= 0 && idx <= x.Length then do x.[idx] <- r
             | None -> ()
             x)
     
@@ -253,21 +253,52 @@ module Routing =
         static member Unwind(((((((a,b),c),d),e),f),g)) = (a,b,c,d,e,f,g)
         static member Unwind((((((((a,b),c),d),e),f),g),h)) = (a,b,c,d,e,f,g,h) 
 
-module Virtualization = 
-    open Feliz 
+module Virtualization =
+
+    // Replace with bind on MutableNode if possible.
+    type ProxyMutableNode<'t> (node : IMutableNode<'t>) =
+        let mutable node = node
+        let changedEvent = new Event<unit>()
+        let triggerChange = Handler<unit>(fun _ _ -> changedEvent.Trigger())
+        do node.Changed.AddHandler triggerChange
+   
+        interface IMutableNode<'t> with
+            member this.Evaluate() = node.Evaluate()
+            member this.Changed = changedEvent.Publish
+            member this.SetValue v = node.SetValue v
+            member this.Apply f = node.Apply f
+
+        member this.SetNode (newNode: IMutableNode<'t>) = 
+            node.Changed.RemoveHandler triggerChange
+            node <- newNode
+            node.Changed.AddHandler triggerChange
+            changedEvent.Trigger()
+
 
     let virtualize (data: IMutableNode<'t array>, editorFactory: IMutableNode<'t> -> EditorComponent<'t>, span: INode<int*int>) =
-        let editorsPool (idx, lens) =
-            new ZoomNode<_,_>(data, lens) |> editorFactory
+        let mutable editors : (ProxyMutableNode<'t>*EditorComponent<'t>) [] = [||]
+
+        let editorsPool (lens: Lens<_,_> []) =
+            let reused = 
+                    Seq.zip lens editors
+                    |> Seq.map (fun (lens, (proxy, editor)) -> proxy.SetNode (new ZoomNode<_,_>(data, lens));  (proxy,editor))
+                
+            let newEditors = 
+                seq {
+                  for l in lens |> Seq.skip editors.Length do
+                    let proxy = new ProxyMutableNode<_>(new ZoomNode<_,_>(data, l))
+                    yield proxy, (editorFactory proxy)
+                }
+            editors <- [| yield! reused; yield! newEditors |]
+            editors |> Array.map snd
+           
         
-        let indexes : CalcNode<_,(int*Lens<_,_>) array>
+        let lenses : CalcNode<_,Lens<_,_> array>
              = new CalcNode<_,_>(span, fun (start, stop) -> 
-                                    [|start..stop|] 
-                                    |> Array.map (fun idx ->
-                                            (idx - start, unsafeFromOption (indexLens idx))))
+                                     [|start..stop|] |> Array.map (indexLens >> unsafeFromOption) )
 
         let editors: INode<EditorComponent<'t>[]> = 
-            new CalcNode<_,_>(indexes, Array.map editorsPool) :> INode<_>
+            new CalcNode<_,_>(lenses, fun lenses -> editorsPool(lenses)) :> INode<_>
 
         let view = CalcNode<_,_>(editors, fun es -> 
             let viewNodes = new ArrayNode<_>(es |> Array.map (fun e -> e.View))
