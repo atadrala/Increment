@@ -69,6 +69,31 @@ type CalcNode<'T1,'T2,'R>(n1: INode<'T1>, n2: INode<'T2>, map: 'T1 -> 'T2 -> 'R)
             }
         member _.Changed = changedEvent.Publish
 
+type CalcNode<'T1,'T2,'T3,'R>(n1: INode<'T1>, n2: INode<'T2>, n3: INode<'T3>, map: 'T1 -> 'T2 -> 'T3 -> 'R) =
+    let changedEvent = new Event<unit>()
+    let isDirty = ref true
+    let prev: Option<'R> ref = ref None
+    do 
+        n1.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
+        n2.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
+        n3.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
+
+    interface INode<'R> with
+        member _.Evaluate() = async {
+                if isDirty.Value || prev.Value.IsNone then
+                    let! fn1 =  Async.StartChild(n1.Evaluate())
+                    let! fn2 =  Async.StartChild(n2.Evaluate())
+                    let! fn3 =  Async.StartChild(n3.Evaluate())
+
+                    let! v1 = fn1
+                    let! v2 = fn2
+                    let! v3 = fn3
+                    prev.Value <- Some (map v1 v2 v3)
+                    isDirty.Value <- false
+                return prev.Value.Value
+            }
+        member _.Changed = changedEvent.Publish
+
 type BindNode<'R>(node: INode<INode<'R>>) =
     let changed = new Event<unit>()
     let mutable inner: INode<'R> option = None
@@ -138,7 +163,10 @@ module Lens =
             | Some r ->  if idx >= 0 && idx <= x.Length then do x.[idx] <- r
             | None -> ()
             x)
-    
+
+    let fstLens : Lens<'f*'s, 'f> = (fun (a,_) -> a), (fun n (_,b) -> (n,b))
+    let sndLens : Lens<'f*'s, 's> = (fun (_,b) -> b), (fun n (a,_) -> (a,n))
+
     let unsafeFromOption ( l: Lens<'s, 't option>) : Lens<'s,'t> =
             compose l
                 (Option.defaultWith (fun () -> 
@@ -151,7 +179,27 @@ module Web =
 
     type View = ReactElement
 
-    type EditorComponentF<'TState> = IMutableNode<'TState> -> INode<View>
+    type ComposableView = 
+        | V of View
+        | C of View list
+        with
+        member this.GetViews = 
+                match this with
+                | V v -> [v]
+                | C c -> c
+
+        static member Compose view1 view2 = 
+               match view1, view2 with
+               | V v1, V v2 -> C [v1;v2]
+               | C v1, C v2 -> C [ yield! v1; yield! v2]
+               | V v1, C v2 -> C [ yield v1; yield! v2]
+               | C v1, V v2 -> C [ yield! v1; yield v2]
+
+
+
+    type EditorComponentFV<'TState,'TView> = IMutableNode<'TState> -> INode<'TView>
+
+    type EditorComponentF<'TState> = EditorComponentFV<'TState,ComposableView>
 
     type ViewComponentF<'TState> = INode<'TState> -> INode<View>
 
@@ -180,6 +228,32 @@ module Web =
                 ]
             ]) :> INode<_>
 
+        static member f: EditorComponentF<string> = fun state -> new CalcNode<_,_>((new StringEditor(state)).View, V) :> INode<_>
+
+module Combinatorics = 
+    open Feliz
+    let (>>>>)  (editorLeft :EditorComponentF<'s1>) (editorRight :EditorComponentF<'s2>) :EditorComponentF<'s1*'s2> = 
+        fun (state: IMutableNode<'s1*'s2>) -> 
+            new CalcNode<_,_,_>( zoom(state, fstLens) |> editorLeft , zoom(state, sndLens) |> editorRight, ComposableView.Compose) :> INode<_>
+
+    let (|^) (editor: EditorComponentF<'s>) (lens: Lens<'t,'s>) :  EditorComponentF<'t> = 
+        fun state -> (editor (zoom(state, lens)))
+
+    let ( |>> ) (editor: EditorComponentF<'s>)  (f: ComposableView -> ComposableView) : EditorComponentF<'s>= 
+        editor >> (fun view -> new CalcNode<_,_>(view, f) :> INode<_>)
+  
+    let wrapWithFlexDiv (v:ComposableView) = 
+        V <| Html.div [
+                prop.style [
+                    Feliz.style.display.flex;
+                ]
+                prop.children v.GetViews
+             ]
+
+    let show (view:ComposableView) = 
+        match view with 
+        | V v -> v
+        | C c -> Html.div c
 
 module Routing = 
     type RouteParser<'T> = string -> ('T*string) option
@@ -275,8 +349,8 @@ module Virtualization =
             changedEvent.Trigger()
 
 
-    let virtualize (data: IMutableNode<'t array>, editorFactory: IMutableNode<'t> -> EditorComponent<'t>, span: INode<int*int>) =
-        let mutable editors : (ProxyMutableNode<'t>*EditorComponent<'t>) [] = [||]
+    let virtualize (data: IMutableNode<'t array>, editor: EditorComponentFV<'t, 'View>, span: INode<int*int>) =
+        let mutable editors : (ProxyMutableNode<'t>*INode<'View>) [] = [||]
 
         let editorsPool (lens: Lens<_,_> []) =
             let reused = 
@@ -287,7 +361,7 @@ module Virtualization =
                 seq {
                   for l in lens |> Seq.skip editors.Length do
                     let proxy = new ProxyMutableNode<_>(new ZoomNode<_,_>(data, l))
-                    yield proxy, (editorFactory proxy)
+                    yield proxy, (editor proxy)
                 }
             editors <- [| yield! reused; yield! newEditors |]
             editors |> Array.map snd
@@ -297,11 +371,11 @@ module Virtualization =
              = new CalcNode<_,_>(span, fun (start, stop) -> 
                                      [|start..stop|] |> Array.map (indexLens >> unsafeFromOption) )
 
-        let editors: INode<EditorComponent<'t>[]> = 
+        let editors: INode<INode<'View>[]> = 
             new CalcNode<_,_>(lenses, fun lenses -> editorsPool(lenses)) :> INode<_>
 
         let view = CalcNode<_,_>(editors, fun es -> 
-            let viewNodes = new ArrayNode<_>(es |> Array.map (fun e -> e.View))
+            let viewNodes = new ArrayNode<_>(es)
             viewNodes :> INode<_> ) :> INode<_>
 
         new BindNode<_>(view) :> INode<_>
