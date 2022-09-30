@@ -22,5 +22,5 @@ module Combinatorics =
     let (|^) (editor: EditorComponentF<'s,'view>) (lens: Lens<'t,'s>) :  EditorComponentF<'t,'view> = 
         fun state -> (editor (zoom(state, lens)))
 
-    let ( |>> ) (editor: EditorComponentF<'s,ComposableView<'view>>)  (f: ComposableView<'view> -> ComposableView<'view>) : EditorComponentF<'s,ComposableView<'view>>= 
+    let ( |>> ) (editor: EditorComponentF<'s,'view>)  (f: 'view -> 'viewOut) : EditorComponentF<'s,'viewOut>= 
         editor >> (fun view -> new CalcNode<_,_>(view, f) :> INode<_>)
