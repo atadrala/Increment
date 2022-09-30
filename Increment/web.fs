@@ -8,10 +8,12 @@ open Combinatorics
 module Web = 
     open Feliz
     open Inc
+    open Lens
 
     type View = ReactElement
 
-    type StringEditor(state: IMutableNode<string>, ?label: string, ?validate:string -> string option) = 
+    type StringEditor<'t>(state: IMutableNode<'t>, lens:Lens<'t, string>, ?label: string, ?validate:'t -> string option) = 
+        let (prj,inj) = lens
         member  _.View = 
             new CalcNode<_,_>(state, fun s ->
             let mutable newValue =  s;
@@ -21,8 +23,8 @@ module Web =
                     yield Html.label [prop.text ""]
                 yield Html.input [
                     prop.type' "text";
-                    prop.valueOrDefault s;
-                    prop.onTextChange (fun (value : string) -> newValue <- value;);
+                    prop.valueOrDefault (prj s);
+                    prop.onTextChange (fun (value : string) -> newValue <- inj value newValue;);
                     prop.onBlur (fun _ -> 
                                  match Option.bind ((|>) newValue) validate with 
                                  | None -> state.SetValue(newValue)
@@ -30,9 +32,13 @@ module Web =
                 ]
             ]) :> INode<_>
 
-        static member f: EditorComponentF<string,View> = fun state -> (new StringEditor(state)).View
+        static member f(state) = (new StringEditor<string>(state, (id, fun nv _ -> nv))).View
 
-        static member f': EditorComponentF<string,ComposableView<View>> = fun state -> new CalcNode<_,_>((new StringEditor(state)).View, List.singleton >> V) :> INode<_>
+        static member f'(state) = new CalcNode<_,_>((new StringEditor<string>(state,(id, fun nv _ -> nv))).View, List.singleton >> V) :> INode<_>
+
+        static member f(state: IMutableNode<int>) = (new StringEditor<int>(state, (string, fun nv _ -> System.Int32.Parse nv))).View
+
+        static member f'(state: IMutableNode<int>) = new CalcNode<_,_>((new StringEditor<_>(state,(string, fun nv _ -> System.Int32.Parse nv))).View, List.singleton >> V) :> INode<_>
 
       
     let wrapWithFlexDiv (v:ComposableView<View>) = 
@@ -101,9 +107,6 @@ module Web =
 
         static member f(editor: EditorComponentF<'elem, View>) = 
             fun (state: IMutableNode<'elem []>) -> (new VirtualizedGrid<_>(state, editor)).View
-        
-
-
         
 
                   
