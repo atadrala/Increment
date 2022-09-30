@@ -3,49 +3,49 @@ module App
 open Feliz
 open Browser.Dom
 open Fable.React
-open Lib
+open System
+
+open Increment.Graph
+open Increment.Lens
+open Increment.Inc
+open Increment.Virtualization
+open Increment.Web
+open Increment.Combinatorics
+
 
 // Mutable variable to count the number of times we clicked the button
 
 let myAppElement = document.querySelector(".my-app") :?> Browser.Types.HTMLElement
 
-type State = string*string
+type Person = { 
+        Name:string; 
+        LastName:string; 
+        DateOfBirth: DateTime;
+        PlaceOfBirth: string; 
+    }
+    with 
+        static member NameLens : Lens<Person, string> = (fun p -> p.Name), (fun name p -> {p with Name = name})
+        static member LastLens : Lens<Person, string> = (fun p -> p.LastName), (fun lastName p -> {p with LastName = lastName})
+        static member DateofBirthLens : Lens<Person, DateTime> = (fun p -> p.DateOfBirth), (fun dob p -> {p with DateOfBirth = dob})
+        static member PlaceOfBirthLens : Lens<Person, string> = (fun p -> p.PlaceOfBirth), (fun pob p -> {p with PlaceOfBirth = pob})
+        static member TupleLens : Lens<Person, (string*string)*string> = 
+                            (fun p -> ((p.Name, p.LastName), p.PlaceOfBirth)), 
+                            (fun ((n,ln), pob) p -> { p with Name=n; LastName=ln; PlaceOfBirth= pob })
 
-type Routes<'TState> = List<string * Lens<'TState, string option>>
+let createPerson (n:int) = 
+    {
+        Name="Name " + (string n);
+        LastName= "LastName " + (string n);
+        PlaceOfBirth = "City " + (string n);
+        DateOfBirth = DateTime.Now;
+    }
 
-(*      
-    route: lens state <-> string option
-    path -> string option -> 
- *)
 
-let routes : Routes<State>  = 
-        [   
-            "/string/:string", (snd >> Option.Some, fun newRoute (s,route) -> (s, newRoute |> Option.defaultValue route))      
-        ]
+let PersonEditorF : EditorComponentF<_, _> = StringEditor.f'  >>>> StringEditor.f'  >>>> StringEditor.f' |^ Person.TupleLens
+let PersonEditorF2 : EditorComponentF<_, _> = PersonEditorF |>> wrapWithFlexDiv
 
-type Router<'TState>(state: IMutableNode<'TState>, routes: Routes<'TState>, initalRoute: string)  =
-    let x = 
-        routes |> List.iter (fun (path, lens) ->  
-                                let path = zoom(state, lens)
-                                path.Changed.Add( fun _ -> 
-                                        async {
-                                            let! route = path.Evaluate()
-                                            match route with 
-                                            | Some route -> window.location.pathname <- route 
-                                            | None -> ()
-                                        } |> Async.Start
-                                ))
 
-type MyApp(state: IMutableNode<string[]>) = 
-    inherit EditorComponent<string[]>(state) 
-
-    // let reverse x = new string( x |> Array.ofSeq |> Array.rev)
-
-    // let lens: Lens<string*string,string> = fst >> reverse, (fun x (str, route) -> (reverse x, route))
-    // let lensFst : Lens<string*string, string> = fst, (fun x  (_,route) -> x, route)
-
-    // let strEditor = StringEditor(zoom(state, lensFst), "String:", function | "Artur" -> Some "Cannot be Artur" | _ -> None )
-    // let revEditor = StringEditor(zoom(state, lens), "Reversed:")
+type MyApp(state: IMutableNode<Person[]>) = 
 
     let scrollPosition = new MutableNode<float>(400.) :> IMutableNode<_>
 
@@ -63,11 +63,10 @@ type MyApp(state: IMutableNode<string[]>) =
 
     let count = 100
 
-    let editors = Virtualization.virtualize(state, (fun elem -> console.log("String editor created"); upcast StringEditor(elem)), span)
+    let editors = virtualize(state, PersonEditorF2, span)
 
-    override _.View = new CalcNode<_,_,_>(
+    member _.View = new CalcNode<_,_,_>(
                             viewSpan, editors, fun (scroll, start, stop) editors -> 
-
                             Html.div [
                                 prop.ref <| fun (el:Browser.Types.Element) -> 
                                                     if el <> null then (el :?> Browser.Types.HTMLElement).scrollTop <- scroll
@@ -83,7 +82,7 @@ type MyApp(state: IMutableNode<string[]>) =
                                         ]
                                     for x in editors do
                                       yield Html.div [
-                                                prop.children [ x ];
+                                                prop.children x.GetViews;
                                                 prop.style [ 
                                                     Feliz.style.height elementHeight;
                                             ]
@@ -97,7 +96,7 @@ type MyApp(state: IMutableNode<string[]>) =
                             
                             ) :> INode<_>
 
-    new() = MyApp(new MutableNode<string[]>( [|0..100|] |> Array.map string ) :> IMutableNode<_>)
+    new() = MyApp(new MutableNode<Person[]>( [|0..100|] |> Array.map createPerson ) :> IMutableNode<_>)
 
 
 let app =  new MyApp()

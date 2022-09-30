@@ -1,8 +1,7 @@
 module lib.Routing.Tests
 
 open NUnit.Framework
-open Lib
-open Routing
+open Increment.Routing
 
 [<Test>]
 let ParserTest () =

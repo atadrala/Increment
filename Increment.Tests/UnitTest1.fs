@@ -1,7 +1,12 @@
 module lib.Tests
 
 open NUnit.Framework
-open Lib
+open Increment.Graph
+open Increment.Lens
+open Increment.Inc
+open Increment.Virtualization
+open Increment.Web
+open Increment.Combinatorics
 
 [<SetUp>]
 let Setup () =

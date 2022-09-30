@@ -3,8 +3,12 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Lib.fs" />
-    <Compile Include="Lib.fs" />
+    <Compile Include="graph.fs" />
+    <Compile Include="lens.fs" />
+    <Compile Include="Increment.fs" />
+    <Compile Include="combinatorics.fs" />
+    <Compile Include="web.fs" />
+    <Compile Include="routing.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Browser.Dom" Version="2.2.0" />
