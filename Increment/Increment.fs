@@ -1,8 +1,21 @@
 ﻿namespace Increment
 
 open Graph 
+open Lens
 
-module Inc = 
+type Inc = 
+    class end
+    with
+        static member Const(value:'a) = new ConstNode<_>(value) :> INode<_>
+        static member Input(initialValue: 'a) = new MutableNode<'a>(initialValue) :> IMutableNode<'a>
+        static member Calc(n1: INode<'T>, f: 'T -> 'R) = new CalcNode<'T,'R>(n1, f) :> INode<_>
+        static member Calc(n1: INode<'T1>, n2: INode<'T2>, f: 'T1 -> 'T2 -> 'R) = new CalcNode<'T1,'T2,'R>(n1,n2, f) :> INode<_>
+        static member Calc(n1: INode<'T1>, n2: INode<'T2>, n3: INode<'T3>,  f: 'T1 -> 'T2 -> 'T3 -> 'R) = new CalcNode<'T1,'T2,'T3,'R>(n1, n2, n3, f) :> INode<_>
+        static member Bind(n: INode<INode<_>>) = new BindNode<_>(n) :> INode<_>
+        static member Array(n: INode<_> array) = new ArrayNode<_>(n) :> INode<_>
+        static member Zoom(mn: IMutableNode<_>, lens:Lens<_,_>) = new ZoomNode<_,_>(mn, lens) :> IMutableNode<_>
+
+module Components = 
 
     type EditorComponentF<'TState,'TView> =  IMutableNode<'TState> -> INode<'TView>
 
@@ -10,9 +23,7 @@ module Inc =
 
 
 module Virtualization =
-
-    open Inc
-    open Lens
+    open Components
 
     // Replace with bind on MutableNode if possible.
     type ProxyMutableNode<'t> (node : IMutableNode<'t>) =
@@ -40,24 +51,21 @@ module Virtualization =
         let editorsPool (lens: Lens<_,_> []) =
             let reusedEditors = 
                     Seq.zip lens editors
-                    |> Seq.map (fun (lens, (proxy, editor)) -> proxy.SetNode (new ZoomNode<_,_>(data, lens));  (proxy,editor))
+                    |> Seq.map (fun (lens, (proxy, editor)) -> proxy.SetNode (Inc.Zoom(data, lens));  (proxy,editor))
                 
             let newEditors = 
                 seq {
                   for l in lens |> Seq.skip editors.Length do
-                    let proxy = new ProxyMutableNode<_>(new ZoomNode<_,_>(data, l))
+                    let proxy = new ProxyMutableNode<_>(Inc.Zoom(data, l))
                     yield proxy, (editor proxy)
                 }
 
             editors <- [| yield! reusedEditors; yield! newEditors |]
-            editors |> Array.map snd
+            editors |> Array.map snd |> Inc.Array
            
-        let editorsViews : INode<INode<_>>
-             = new CalcNode<_,_>(span, fun (start, stop) -> 
+        let editorsViews = Inc.Calc(span, fun (start, stop) -> 
                                      [|start..stop|] 
                                      |> Array.map (indexLens >> unsafeFromOption)
-                                     |> editorsPool
-                                     |> ArrayNode<_>
-                                     :> INode<_>) :> INode<_>
+                                     |> editorsPool)
 
-        new BindNode<_>(editorsViews) :> INode<_>
+        Inc.Bind(editorsViews)

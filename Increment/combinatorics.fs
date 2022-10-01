@@ -1,7 +1,7 @@
 ﻿namespace Increment 
 
 open Graph
-open Inc
+open Components
 open Lens
 
 module Combinatorics = 
@@ -17,12 +17,12 @@ module Combinatorics =
 
     let (>>>>)  (editorLeft :EditorComponentF<'s1,ComposableView<'view>>) (editorRight :EditorComponentF<'s2, ComposableView<'view>>) :EditorComponentF<'s1*'s2, ComposableView<'view>> = 
         fun (state: IMutableNode<'s1*'s2>) -> 
-            new CalcNode<_,_,_>( zoom(state, fstLens) |> editorLeft , zoom(state, sndLens) |> editorRight, ComposableView<'view>.Compose) :> INode<_>
+            Inc.Calc( Inc.Zoom(state, fstLens) |> editorLeft , Inc.Zoom(state, sndLens) |> editorRight, ComposableView<'view>.Compose)
 
     let (|^) (editor: EditorComponentF<'s,'view>) (lens: Lens<'t,'s>) :  EditorComponentF<'t,'view> = 
-        fun state -> (editor (zoom(state, lens)))
+        fun state -> (editor (Inc.Zoom(state, lens)))
 
     let (^|) (lens: Lens<'t,'s>) (editor: EditorComponentF<'s,'view>) = editor |^ lens 
 
     let ( |>> ) (editor: EditorComponentF<'s,'view>)  (f: 'view -> 'viewOut) : EditorComponentF<'s,'viewOut>= 
-        editor >> (fun view -> new CalcNode<_,_>(view, f) :> INode<_>)
+        editor >> (fun view -> Inc.Calc(view, f))

@@ -11,6 +11,12 @@ module Graph =
         abstract SetValue : 'T -> unit
         abstract Apply: ('T -> 'T) -> unit
 
+    type ConstNode<'T>(value: 'T) =
+        let changedEvent = new Event<unit>()     
+        interface INode<'T> with
+            member _.Evaluate() = async { return value }
+            member _.Changed = changedEvent.Publish
+
     type MutableNode<'T when 'T : equality>(initialValue: 'T) = 
         let value = initialValue |> Lazy.CreateFromValue |> ref
         let changedEvent = new Event<unit>()
@@ -126,4 +132,5 @@ module Graph =
                     return values
                 }
             member _.Changed = changed.Publish
+
 

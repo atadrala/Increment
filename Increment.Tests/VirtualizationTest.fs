@@ -3,10 +3,10 @@ module lib.VirtualizationTest
 open NUnit.Framework
 open Increment.Graph
 open Increment.Lens
-open Increment.Inc
+open Increment.Components
 open Increment.Virtualization
 open Increment.Web
-open Increment.Combinatorics
+open Increment
 
 type TestView(state: IMutableNode<string>, value:string) =
     member this.Value = value
@@ -16,7 +16,7 @@ type TestView(state: IMutableNode<string>, value:string) =
 
 type TestEditor(state: IMutableNode<string>) = 
 
-    let view = new CalcNode<_,_>(state, fun x ->  new TestView(state, x))
+    let view = Inc.Calc(state, fun x ->  new TestView(state, x))
     member this.View = view :> INode<_> 
     member this.SetValue str = state.SetValue str
 
@@ -24,8 +24,8 @@ type TestEditor(state: IMutableNode<string>) =
 
 [<Test>]
 let EditorIsNotConstructedWhenViewIsNotEvaluated() = 
-    let data = new MutableNode<string[]>( [|1..100|] |> Array.map string )
-    let span = new MutableNode<int*int>(5,10)
+    let data = Inc.Input( [|1..100|] |> Array.map string)
+    let span = Inc.Input(5,10)
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -37,8 +37,8 @@ let EditorIsNotConstructedWhenViewIsNotEvaluated() =
 
 [<Test>]
 let VirtualizedEditorsAreReused () =
-    let data = new MutableNode<string[]>( [|1..100|] |> Array.map string )
-    let span = new MutableNode<int*int>(5,10)
+    let data = Inc.Input( [|1..100|] |> Array.map string )
+    let span = Inc.Input(5,10)
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -51,8 +51,8 @@ let VirtualizedEditorsAreReused () =
 
 [<Test>]
 let WhenSpanShiftedThenEditorsViewPresentShiftedData() = 
-    let data = new MutableNode<string[]>( [|0..100|] |> Array.map string )
-    let span = new MutableNode<int*int>(5,10) :> IMutableNode<_>
+    let data =Inc.Input( [|0..100|] |> Array.map string )
+    let span =Inc.Input(5,10)
     let virtualizedEditor = 
         virtualize(data, TestEditor.f , span) :> INode<_>
 
@@ -67,8 +67,8 @@ let WhenSpanShiftedThenEditorsViewPresentShiftedData() =
 
 [<Test>]
 let WhenSpanShiftsEditorsAreReused() =
-    let data = new MutableNode<string[]>( [|1..100|] |> Array.map string )
-    let span = new MutableNode<int*int>(5,10) :> IMutableNode<_>
+    let data =Inc.Input( [|1..100|] |> Array.map string)
+    let span =Inc.Input(5,10)
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -86,8 +86,8 @@ let WhenSpanShiftsEditorsAreReused() =
 
 [<Test>]
 let WhenSpanShiftsEditsAffectsUnderlyingState() =
-    let data = new MutableNode<string[]>( [|0..100|] |> Array.map string )
-    let span = new MutableNode<int*int>(0,10) :> IMutableNode<_>
+    let data =Inc.Input( [|0..100|] |> Array.map string)
+    let span =Inc.Input(0,10) :> IMutableNode<_>
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -108,8 +108,8 @@ let WhenSpanShiftsEditsAffectsUnderlyingState() =
 
 //[<Test>]
 //let WhenSpanShiftsReusedEditorsShouldNotChangeState() = // When index span intersection is not empty before and after shift then editors should reused the same indexed.
-//    let data = new MutableNode<string[]>( [|1..100|] |> Array.map string )
-//    let span = new MutableNode<int*int>(50,60) :> IMutableNode<_>
+//    let data =Inc.Input( [|1..100|] |> Array.map string )
+//    let span =Inc.Input(50,60) :> IMutableNode<_>
 //    let mutable counter = 0
 //    let virtualizedEditor = 
 //        Virtualization.virtualize(

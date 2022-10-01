@@ -7,8 +7,8 @@ open System
 
 open Increment.Graph
 open Increment.Lens
-open Increment.Inc
-open Increment.Virtualization
+open Increment.Components
+open Increment
 open Increment.Web
 open Increment.Combinatorics
 
@@ -49,9 +49,8 @@ let PersonEditorF2 : EditorComponentF<_, _> = PersonEditorF |>> wrapWithFlexDiv 
 let grid : EditorComponentF<_, _> = PersonEditorF2 |> VirtualizedGrid<Person>.f
 
 let appView = 
-    let state = new MutableNode<Person[]>( [|0..100|] |> Array.map createPerson)
+    let state = Inc.Input([|0..100|] |> Array.map createPerson)
     grid state
-
 
 async { 
         let! v = appView.Evaluate()
