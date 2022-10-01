@@ -12,7 +12,8 @@ type Inc =
         static member Calc(n1: INode<'T1>, n2: INode<'T2>, f: 'T1 -> 'T2 -> 'R) = new CalcNode<'T1,'T2,'R>(n1,n2, f) :> INode<_>
         static member Calc(n1: INode<'T1>, n2: INode<'T2>, n3: INode<'T3>,  f: 'T1 -> 'T2 -> 'T3 -> 'R) = new CalcNode<'T1,'T2,'T3,'R>(n1, n2, n3, f) :> INode<_>
         static member Bind(n: INode<INode<_>>) = new BindNode<_>(n) :> INode<_>
-        static member Array(n: INode<_> array) = new ArrayNode<_>(n) :> INode<_>
+        //static member Split( n: INode< 't array>) : INode<'t> array
+        static member Join(n: INode<_> array) = new ArrayNode<_>(n) :> INode<_>
         static member Zoom(mn: IMutableNode<_>, lens:Lens<_,_>) = new ZoomNode<_,_>(mn, lens) :> IMutableNode<_>
 
 module Components = 
@@ -61,7 +62,7 @@ module Virtualization =
                 }
 
             editors <- [| yield! reusedEditors; yield! newEditors |]
-            editors |> Array.map snd |> Inc.Array
+            editors |> Array.map snd |> Inc.Join
            
         let editorsViews = Inc.Calc(span, fun (start, stop) -> 
                                      [|start..stop|] 
