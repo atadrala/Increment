@@ -2,44 +2,44 @@
 
 module Graph = 
 
-    type INode<'T> = 
-        abstract Evaluate : unit -> Async<'T>
+    type INode<'value> = 
+        abstract Evaluate : unit -> Async<'value>
         abstract Changed: IEvent<unit>
 
-    type IMutableNode<'T> =
-        inherit INode<'T>
-        abstract SetValue : 'T -> Async<unit>
+    type IMutableNode<'value> =
+        inherit INode<'value>
+        abstract SetValue : 'value -> Async<unit>
 
-    type ConstNode<'T>(value: 'T) =
+    type ConstNode<'value>(value: 'value) =
         let changedEvent = new Event<unit>()     
-        interface INode<'T> with
+        interface INode<'value> with
             member _.Evaluate() = async { return value }
             member _.Changed = changedEvent.Publish
 
-    type MutableNode<'T when 'T : equality>(initialValue: 'T) = 
+    type MutableNode<'value when 'value : equality>(initialValue: 'value) = 
         let value = initialValue |> ref
         let changedEvent = new Event<unit>()
 
-        interface INode<'T> with
+        interface INode<'value> with
             member _.Evaluate() = async { return value.Value; }
             member _.Changed = changedEvent.Publish
     
-        interface IMutableNode<'T> with
-            member this.SetValue (newValue: 'T) = 
+        interface IMutableNode<'value> with
+            member this.SetValue (newValue: 'value) = 
                 if newValue <> value.Value then 
                     value.Value <- newValue
                     changedEvent.Trigger()
                 async { return () }
             
-    type CalcNode<'T,'R when 'T : equality>(n1: INode<'T>, map: 'T -> 'R) =
+    type CalcNode<'input, 'value when 'input : equality>(n1: INode<'input>, map: 'input -> 'value) =
         let changedEvent = new Event<unit>()
         let isDirty = ref true
-        let prevValue: Option<'R> ref = ref None
-        let prevDep: Option<'T> ref = ref None
+        let prevValue: Option<'value> ref = ref None
+        let prevDep: Option<'input> ref = ref None
         do 
            n1.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
 
-        interface INode<'R> with
+        interface INode<'value> with
             member _.Evaluate() = async {
                     if isDirty.Value || prevValue.Value.IsNone then
                         let! v1 = n1.Evaluate()
@@ -52,18 +52,18 @@ module Graph =
                 }
             member _.Changed = changedEvent.Publish
 
-    type CalcNode<'T1,'T2,'R when 'T1 : equality and 'T2 : equality>(n1: INode<'T1>, n2: INode<'T2>, map: 'T1 -> 'T2 -> 'R) =
+    type CalcNode<'input1,'input2,'value when 'input1 : equality and 'input2 : equality>(n1: INode<'input1>, n2: INode<'input2>, map: 'input1 -> 'input2 -> 'value) =
         let changedEvent = new Event<unit>()
         let isDirty = ref true
-        let prevValue: Option<'R> ref = ref None
-        let prevDep1: Option<'T1> ref = ref None
-        let prevDep2: Option<'T2> ref = ref None
+        let prevValue: Option<'value> ref = ref None
+        let prevDep1: Option<'input1> ref = ref None
+        let prevDep2: Option<'input2> ref = ref None
 
         do 
             n1.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
             n2.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
 
-        interface INode<'R> with
+        interface INode<'value> with
             member _.Evaluate() = async {
                     if isDirty.Value || prevValue.Value.IsNone then
                         let! fn1 =  Async.StartChild(n1.Evaluate())
@@ -81,20 +81,20 @@ module Graph =
                 }
             member _.Changed = changedEvent.Publish
 
-    type CalcNode<'T1,'T2,'T3,'R when 'T1 : equality and 'T2 : equality  and 'T3 : equality>
-                (n1: INode<'T1>, n2: INode<'T2>, n3: INode<'T3>, map: 'T1 -> 'T2 -> 'T3 -> 'R) =
+    type CalcNode<'input1,'input2,'input3,'value when 'input1 : equality and 'input2 : equality  and 'input3 : equality>
+                (n1: INode<'input1>, n2: INode<'input2>, n3: INode<'input3>, map: 'input1 -> 'input2 -> 'input3 -> 'value) =
         let changedEvent = new Event<unit>()
         let isDirty = ref true
-        let prevValue: Option<'R> ref = ref None
-        let prevDep1: Option<'T1> ref = ref None
-        let prevDep2: Option<'T2> ref = ref None
-        let prevDep3: Option<'T3> ref = ref None
+        let prevValue: Option<'value> ref = ref None
+        let prevDep1: Option<'input1> ref = ref None
+        let prevDep2: Option<'input2> ref = ref None
+        let prevDep3: Option<'input3> ref = ref None
         do 
             n1.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
             n2.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
             n3.Changed.Add( fun _ -> isDirty.Value <- true; changedEvent.Trigger())
 
-        interface INode<'R> with
+        interface INode<'value> with
             member _.Evaluate() = async {
                     if isDirty.Value || prevValue.Value.IsNone then
                         let! fn1 =  Async.StartChild(n1.Evaluate())
@@ -117,9 +117,9 @@ module Graph =
                 }
             member _.Changed = changedEvent.Publish
 
-    type BindNode<'R>(node: INode<INode<'R>>) =
+    type BindNode<'value>(node: INode<INode<'value>>) =
         let changed = new Event<unit>()
-        let mutable inner: INode<'R> option = None
+        let mutable inner: INode<'value> option = None
         let trigger = Handler<unit>( fun _ _ -> changed.Trigger())
         do 
             node.Changed.Add(fun _ -> 
@@ -127,7 +127,7 @@ module Graph =
                                 inner <- None
                                 changed.Trigger())
 
-        interface INode<'R> with
+        interface INode<'value> with
             member this.Evaluate() = async {
                     let! innerNode = node.Evaluate()
                     inner |> Option.iter ( fun inner -> inner.Changed.RemoveHandler(trigger))
@@ -138,13 +138,13 @@ module Graph =
                 }
             member _.Changed = changed.Publish
 
-    type ArrayNode<'R>(nodes: INode<'R> array) =
+    type ArrayNode<'value>(nodes: INode<'value> array) =
         let changed = new Event<unit>()
         do 
             for n in nodes do   
                 n.Changed.Add(fun _ -> changed.Trigger())
 
-        interface INode<'R array> with
+        interface INode<'value array> with
             member this.Evaluate() = async {
                     let! values = Async.Parallel(nodes |> Array.map (fun n -> n.Evaluate()))
                     return values
