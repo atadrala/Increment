@@ -1,11 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="UnitTest1.fs" />
+    <Compile Include="Graph.fs" />
     <Compile Include="RoutingTest.fs" />
     <Compile Include="VirtualizationTest.fs" />
     <Compile Include="Program.fs" />

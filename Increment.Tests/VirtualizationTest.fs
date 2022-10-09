@@ -16,7 +16,7 @@ type TestView(state: IMutableNode<string>, value:string) =
 
 type TestEditor(state: IMutableNode<string>) = 
 
-    let view = Inc.Calc(state, fun x ->  new TestView(state, x))
+    let view = Inc.Map(state, fun x ->  new TestView(state, x))
     member this.View = view :> INode<_> 
     member this.SetValue str = state.SetValue str
 
@@ -24,8 +24,8 @@ type TestEditor(state: IMutableNode<string>) =
 
 [<Test>]
 let EditorIsNotConstructedWhenViewIsNotEvaluated() = 
-    let data = Inc.Input( [|1..100|] |> Array.map string)
-    let span = Inc.Input(5,10)
+    let data = Inc.Var( [|1..100|] |> Array.map string)
+    let span = Inc.Var(5,10)
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -37,8 +37,8 @@ let EditorIsNotConstructedWhenViewIsNotEvaluated() =
 
 [<Test>]
 let VirtualizedEditorsAreReused () =
-    let data = Inc.Input( [|1..100|] |> Array.map string )
-    let span = Inc.Input(5,10)
+    let data = Inc.Var( [|1..100|] |> Array.map string )
+    let span = Inc.Var(5,10)
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -51,8 +51,8 @@ let VirtualizedEditorsAreReused () =
 
 [<Test>]
 let WhenSpanShiftedThenEditorsViewPresentShiftedData() = 
-    let data =Inc.Input( [|0..100|] |> Array.map string )
-    let span =Inc.Input(5,10)
+    let data =Inc.Var( [|0..100|] |> Array.map string )
+    let span =Inc.Var(5,10)
     let virtualizedEditor = 
         virtualize(data, TestEditor.f , span) :> INode<_>
 
@@ -67,8 +67,8 @@ let WhenSpanShiftedThenEditorsViewPresentShiftedData() =
 
 [<Test>]
 let WhenSpanShiftsEditorsAreReused() =
-    let data =Inc.Input( [|1..100|] |> Array.map string)
-    let span =Inc.Input(5,10)
+    let data =Inc.Var( [|1..100|] |> Array.map string)
+    let span =Inc.Var(5,10)
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -86,8 +86,8 @@ let WhenSpanShiftsEditorsAreReused() =
 
 [<Test>]
 let WhenSpanShiftsEditsAffectsUnderlyingState() =
-    let data =Inc.Input( [|0..100|] |> Array.map string)
-    let span =Inc.Input(0,10) :> IMutableNode<_>
+    let data =Inc.Var( [|0..100|] |> Array.map string)
+    let span =Inc.Var(0,10) :> IMutableNode<_>
     let mutable counter = 0
     let virtualizedEditor = 
         virtualize(
@@ -96,10 +96,10 @@ let WhenSpanShiftsEditsAffectsUnderlyingState() =
             span) :> INode<_>
 
     for i in [0..10..90] do 
-        span.SetValue((i,i+10))
+        Async.RunSynchronously <| span.SetValue((i,i+10))
         let editors = virtualizedEditor.Evaluate() |> Async.RunSynchronously
         for editor in editors do
-           editor.SetValue "Test"
+           Async.RunSynchronously <| editor.SetValue "Test"
 
     let values = (data :> INode<_>).Evaluate() |> Async.RunSynchronously 
 

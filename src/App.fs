@@ -43,14 +43,19 @@ let createPerson (n:int) =
     }
 
 
-let PersonEditorF : EditorComponentF<_, _> =  Person.TupleLens ^| (StringEditor<_>.f' >>>> StringEditor<_>.f' >>>> StringEditor<_>.f' >>>> StringEditor<_>.f')
+let PersonEditorF : EditorComponentF<_, _> =  Person.TupleLens ^| (Editor.String' >>>> Editor.String' >>>> Editor.String' >>>> Editor.Int')
 let PersonEditorF2 : EditorComponentF<_, _> = PersonEditorF |>> wrapWithFlexDiv |>> (function | ComposableView.V x ->  x.Head)
 
 let grid : EditorComponentF<_, _> = PersonEditorF2 |> VirtualizedGrid<Person>.f
 
-let appView = 
-    let state = Inc.Input([|0..100|] |> Array.map createPerson)
-    grid state
+let gridAppView = Inc.Var([|0..100|] |> Array.map createPerson) |> grid
+
+let appView =
+    let input = Inc.Var("")
+    let editor = new Editor<_>(input, (id, fun nv _ -> nv), "Not empty string", function | "" -> Some "String must not be empty" | _ -> None)
+    let editor2 = new Editor<_>(input, (id, fun nv _ -> nv), "Not empty string", function | "" -> Some "String must not be empty" | _ -> None)
+    
+    Inc.Map(editor.View, editor2.View, fun v1 v2 -> Html.div [v1;v2])  
 
 async { 
         let! v = appView.Evaluate()

@@ -19,11 +19,12 @@ module Lens =
         
         interface IMutableNode<'R> with
             member this.SetValue (newValue: 'R) = 
-                node.Apply(inj newValue)
-            member this.Apply (f: 'R -> 'R) = 
-                let outerF x = 
-                    inj ( f <| prj x) x 
-                node.Apply(outerF)
+                async {
+                    let! v = node.Evaluate()
+                    do! node.SetValue(inj newValue v)
+                    return ()
+                }
+
 
     let zoom(node:IMutableNode<'S>, lens: Lens<'S,'R>) : IMutableNode<'R> = 
             new ZoomNode<'S,'R>(node, lens) :> IMutableNode<'R>
