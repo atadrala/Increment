@@ -125,6 +125,34 @@ module Web =
 
         static member f(editor: EditorComponentF<'elem, View>) = 
             fun (state: IMutableNode<'elem []>) -> (new VirtualizedGrid<_>(state, editor)).View
-        
+   
+   
+    type CacheNode<'elem>(node: IMutableNode<'elem>) = 
+        let mutable v: option<'elem> =  None
 
-                  
+        interface IMutableNode<'elem> with
+                member this.Evaluate() = async {
+                        if v.IsSome 
+                            then return v.Value
+                            else 
+                                let! nodeValue = node.Evaluate()
+                                return nodeValue
+                    }
+                member this.Changed = node.Changed
+
+                member this.SetValue newValue = async { v <- Some newValue }
+
+        member this.Flush() = 
+            async { 
+                if v.IsSome then 
+                    do! node.SetValue v.Value
+                    v <- None
+            }
+
+          
+    type Confirmation<'elem>(state: IMutableNode<'elem>, editor: EditorComponentF<'elem, View>) =
+       
+        let counter = Inc.Var 0
+
+        member this.View = ()
+            
