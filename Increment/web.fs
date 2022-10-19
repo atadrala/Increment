@@ -151,8 +151,17 @@ module Web =
 
           
     type Confirmation<'elem>(state: IMutableNode<'elem>, editor: EditorComponentF<'elem, View>) =
-       
-        let counter = Inc.Var 0
+        let editCache = new CacheNode<_>(state)
 
-        member this.View = ()
+        member this.View = Inc.Map(editor editCache, fun v -> 
+        
+                Html.div [
+                    prop.children  [
+                        v  
+                        Html.button [
+                            prop.text "Save"
+                            prop.onClick (fun x -> editCache.Flush() |> Async.Start)
+                            ]
+                        ]
+                    ])
             

@@ -54,8 +54,8 @@ let appView =
     let input = Inc.Var("")
     let editor = new Editor<_>(input, (id, fun nv _ -> nv), "Not empty string", function | "" -> Some "String must not be empty" | _ -> None)
     let editor2 = new Editor<_>(input, (id, fun nv _ -> nv), "Not empty string", function | "" -> Some "String must not be empty" | _ -> None)
-    
-    Inc.Map(editor.View, editor2.View, fun v1 v2 -> Html.div [v1;v2])  
+    let confirm = new Confirmation<_>(input, Editor<_>.String)
+    Inc.Map(editor.View, confirm.View, fun v1 v2 -> Html.div [v1;v2])  
 
 async { 
         let! v = appView.Evaluate()
